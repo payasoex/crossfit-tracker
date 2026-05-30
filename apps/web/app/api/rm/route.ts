@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { decode } from "next-auth/jwt"
 import { z } from "zod"
+
+async function getUserId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) return null
+
+  const token = authHeader.slice(7)
+  try {
+    const decoded = await decode({
+      token,
+      secret: new TextEncoder().encode(process.env.AUTH_SECRET!),
+      salt: "",
+    })
+    return decoded?.id as string ?? null
+  } catch {
+    return null
+  }
+}
 
 const CreateRMSchema = z.object({
   movementId: z.string(),
@@ -12,8 +29,8 @@ const CreateRMSchema = z.object({
 })
 
 export async function GET(req: Request) {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const userId = await getUserId(req)
+  if (!userId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
@@ -22,7 +39,7 @@ export async function GET(req: Request) {
 
   const records = await prisma.rMRecord.findMany({
     where: {
-      userId: session.user.id,
+      userId,
       ...(movementId ? { movementId } : {}),
     },
     include: { movement: true },
@@ -33,8 +50,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const userId = await getUserId(req)
+  if (!userId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
@@ -50,19 +67,13 @@ export async function POST(req: Request) {
 
   const { movementId, value, reps, notes, recordedAt } = parsed.data
 
-  // Verificar si es PR comparando contra el historial
   const currentPR = await prisma.rMRecord.findFirst({
-    where: {
-      userId: session.user.id,
-      movementId,
-      isPR: true,
-    },
+    where: { userId, movementId, isPR: true },
     orderBy: { value: "desc" },
   })
 
   const isPR = !currentPR || value > currentPR.value
 
-  // Si es PR, desmarcar el anterior
   if (isPR && currentPR) {
     await prisma.rMRecord.update({
       where: { id: currentPR.id },
@@ -71,15 +82,7 @@ export async function POST(req: Request) {
   }
 
   const record = await prisma.rMRecord.create({
-    data: {
-      userId: session.user.id,
-      movementId,
-      value,
-      reps,
-      notes,
-      recordedAt,
-      isPR,
-    },
+    data: { userId, movementId, value, reps, notes, recordedAt, isPR },
     include: { movement: true },
   })
 
