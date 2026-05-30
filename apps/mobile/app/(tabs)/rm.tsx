@@ -1,11 +1,11 @@
 import { useState } from "react"
 import {
-  View, Text, FlatList, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator, TextInput,
-  Alert, Modal, ScrollView,
+  ScrollView,
 } from "react-native"
+import { router } from "expo-router"
 import { useMovements, Movement } from "@/hooks/useMovements"
-import { api } from "@/lib/api"
 
 const CATEGORY_LABELS: Record<string, string> = {
   OLYMPIC_WEIGHTLIFTING: "Levantamiento Olímpico",
@@ -17,11 +17,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function RMScreen() {
   const { movements, loading } = useMovements()
-  const [selectedMovement, setSelectedMovement] = useState<Movement | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [value, setValue] = useState("")
-  const [reps, setReps] = useState("1")
-  const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState("")
 
   const filtered = movements.filter(m =>
@@ -35,34 +30,16 @@ export default function RMScreen() {
     return acc
   }, {} as Record<string, Movement[]>)
 
-  async function handleSaveRM() {
-    if (!selectedMovement || !value) {
-      Alert.alert("Error", "Ingresa el valor del RM")
-      return
-    }
-
-    setSaving(true)
-    try {
-      const res = await api.post("/api/rm", {
-        movementId: selectedMovement.id,
-        value: parseFloat(value),
-        reps: selectedMovement.measureType === "WEIGHT" ? parseInt(reps) : undefined,
-        recordedAt: new Date().toISOString(),
-      })
-
-      const isPR = res.data.isPR
-      Alert.alert(
-        isPR ? "🎉 ¡Nuevo PR!" : "✅ Registrado",
-        isPR
-          ? `Nuevo récord en ${selectedMovement.nameEs || selectedMovement.name}: ${value}${selectedMovement.measureType === "WEIGHT" ? " kg" : " reps"}`
-          : `RM registrado correctamente`,
-        [{ text: "OK", onPress: () => { setShowForm(false); setValue(""); setReps("1") } }]
-      )
-    } catch {
-      Alert.alert("Error", "No se pudo guardar el RM")
-    } finally {
-      setSaving(false)
-    }
+  function handleMovementPress(movement: Movement) {
+    router.push({
+      pathname: "/movement/[id]",
+      params: {
+        id: movement.id,
+        name: movement.name,
+        nameEs: movement.nameEs || movement.name,
+        measureType: movement.measureType,
+      },
+    })
   }
 
   if (loading) {
@@ -95,7 +72,7 @@ export default function RMScreen() {
               <TouchableOpacity
                 key={movement.id}
                 style={styles.movementRow}
-                onPress={() => { setSelectedMovement(movement); setShowForm(true) }}
+                onPress={() => handleMovementPress(movement)}
               >
                 <View>
                   <Text style={styles.movementName}>
@@ -113,69 +90,6 @@ export default function RMScreen() {
           </View>
         ))}
       </ScrollView>
-
-      <Modal visible={showForm} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {selectedMovement?.nameEs || selectedMovement?.name}
-            </Text>
-
-            {selectedMovement?.measureType === "WEIGHT" ? (
-              <>
-                <Text style={styles.label}>Peso (kg)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ej: 100"
-                  placeholderTextColor="#666"
-                  value={value}
-                  onChangeText={setValue}
-                  keyboardType="decimal-pad"
-                />
-                <Text style={styles.label}>Repeticiones</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ej: 1"
-                  placeholderTextColor="#666"
-                  value={reps}
-                  onChangeText={setReps}
-                  keyboardType="number-pad"
-                />
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>Repeticiones</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ej: 10"
-                  placeholderTextColor="#666"
-                  value={value}
-                  onChangeText={setValue}
-                  keyboardType="number-pad"
-                />
-              </>
-            )}
-
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveRM}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator color="#000" />
-                : <Text style={styles.saveButtonText}>Guardar RM</Text>
-              }
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => { setShowForm(false); setValue(""); setReps("1") }}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   )
 }
@@ -191,13 +105,4 @@ const styles = StyleSheet.create({
   movementSub: { color: "#666", fontSize: 12, marginTop: 2 },
   badge: { backgroundColor: "#222", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   badgeText: { color: "#888", fontSize: 12 },
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.7)" },
-  modalContent: { backgroundColor: "#111", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
-  modalTitle: { fontSize: 20, fontWeight: "bold", color: "#fff", marginBottom: 20 },
-  label: { color: "#888", fontSize: 13, marginBottom: 6 },
-  input: { backgroundColor: "#222", borderWidth: 1, borderColor: "#333", borderRadius: 10, padding: 14, color: "#fff", fontSize: 16, marginBottom: 14 },
-  saveButton: { backgroundColor: "#fff", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 4 },
-  saveButtonText: { color: "#000", fontSize: 16, fontWeight: "bold" },
-  cancelButton: { padding: 16, alignItems: "center", marginTop: 4 },
-  cancelButtonText: { color: "#666", fontSize: 15 },
 })
