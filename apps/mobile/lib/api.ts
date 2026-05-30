@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store"
 
 const BASE_URL = __DEV__
   ? "http://10.0.2.2:3000"
-  : "https://tu-dominio.vercel.app"
+  : "https://crossfit-tracker-tau.vercel.app"
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -12,11 +12,8 @@ export const api = axios.create({
 
 api.interceptors.request.use(async (config) => {
   const token = await SecureStore.getItemAsync("session_token")
-  console.log("Token exists:", !!token)
-  console.log("Request URL:", config.url)
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
-    console.log("Authorization header set")
   }
   return config
 })
