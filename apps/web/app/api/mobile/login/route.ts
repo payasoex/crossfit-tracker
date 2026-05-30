@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         name: user.name,
         weightUnit: user.weightUnit,
       },
-      secret: new TextEncoder().encode(secret),
+      secret: secret,
       salt: "",
     })
 
