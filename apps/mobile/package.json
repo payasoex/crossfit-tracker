@@ -18,7 +18,10 @@
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "react-native": "0.85.3"
+    "react-native": "0.85.3",
+    "react-native-chart-kit": "^6.12.3",
+    "react-native-svg": "^15.15.5",
+    "victory-native": "^41.21.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.15",

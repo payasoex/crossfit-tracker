@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback } from "react"
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert,
-  Modal, TextInput,
+  Modal, TextInput, Dimensions, ScrollView,
 } from "react-native"
 import { useLocalSearchParams, router } from "expo-router"
+import { LineChart } from "react-native-chart-kit"
 import { api } from "@/lib/api"
+
+const SCREEN_WIDTH = Dimensions.get("window").width
 
 type RMRecord = {
   id: string
@@ -93,14 +96,20 @@ export default function MovementDetailScreen() {
     return date.toLocaleDateString("es-CL", {
       day: "numeric",
       month: "short",
-      year: "numeric",
     })
   }
 
   const pr = records.find(r => r.isPR)
 
+  // Datos para la gráfica — ordenados cronológicamente
+  const chartData = [...records]
+    .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+    .slice(-10) // últimos 10 registros
+
+  const hasChartData = chartData.length >= 2
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <TouchableOpacity onPress={() => router.back()} style={styles.back}>
         <Text style={styles.backText}>← Volver</Text>
       </TouchableOpacity>
@@ -116,6 +125,32 @@ export default function MovementDetailScreen() {
             {pr.reps && pr.reps > 1 ? ` × ${pr.reps}` : ""}
           </Text>
           <Text style={styles.prDate}>{formatDate(pr.recordedAt)}</Text>
+        </View>
+      )}
+
+      {hasChartData && (
+        <View style={styles.chartContainer}>
+          <Text style={styles.sectionTitle}>Progresión</Text>
+          <LineChart
+            data={{
+              labels: chartData.map(r => formatDate(r.recordedAt)),
+              datasets: [{ data: chartData.map(r => r.value) }],
+            }}
+            width={SCREEN_WIDTH - 40}
+            height={180}
+            chartConfig={{
+              backgroundColor: "#111",
+              backgroundGradientFrom: "#111",
+              backgroundGradientTo: "#111",
+              decimalPlaces: 1,
+              color: (opacity = 1) => `rgba(255, 215, 0, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(102, 102, 102, ${opacity})`,
+              propsForDots: { r: "4", strokeWidth: "2", stroke: "#FFD700" },
+            }}
+            bezier
+            style={{ borderRadius: 10, marginTop: 8 }}
+            withInnerLines={false}
+          />
         </View>
       )}
 
@@ -141,35 +176,32 @@ export default function MovementDetailScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
-          data={records}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <View style={[styles.recordRow, item.isPR && styles.recordRowPR]}>
-              <View>
-                <View style={styles.recordValueRow}>
-                  <Text style={styles.recordValue}>
-                    {item.value}{measureType === "WEIGHT" ? " kg" : " reps"}
-                  </Text>
-                  {item.reps && item.reps > 1 && (
-                    <Text style={styles.recordReps}>× {item.reps} reps</Text>
-                  )}
-                  {item.isPR && (
-                    <View style={styles.prBadge}>
-                      <Text style={styles.prBadgeText}>PR</Text>
-                    </View>
-                  )}
-                </View>
-                {item.notes && (
-                  <Text style={styles.recordNotes}>{item.notes}</Text>
+        records.map(item => (
+          <View key={item.id} style={[styles.recordRow, item.isPR && styles.recordRowPR]}>
+            <View>
+              <View style={styles.recordValueRow}>
+                <Text style={styles.recordValue}>
+                  {item.value}{measureType === "WEIGHT" ? " kg" : " reps"}
+                </Text>
+                {item.reps && item.reps > 1 && (
+                  <Text style={styles.recordReps}>× {item.reps} reps</Text>
+                )}
+                {item.isPR && (
+                  <View style={styles.prBadge}>
+                    <Text style={styles.prBadgeText}>PR</Text>
+                  </View>
                 )}
               </View>
-              <Text style={styles.recordDate}>{formatDate(item.recordedAt)}</Text>
+              {item.notes && (
+                <Text style={styles.recordNotes}>{item.notes}</Text>
+              )}
             </View>
-          )}
-        />
+            <Text style={styles.recordDate}>{formatDate(item.recordedAt)}</Text>
+          </View>
+        ))
       )}
+
+      <View style={{ height: 40 }} />
 
       <Modal visible={showForm} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -233,13 +265,13 @@ export default function MovementDetailScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: "#000" },
-  back: { marginBottom: 16 },
+  back: { marginBottom: 16, marginTop: 8 },
   backText: { color: "#888", fontSize: 15 },
   title: { fontSize: 28, fontWeight: "bold", color: "#fff", marginBottom: 4 },
   subtitle: { fontSize: 14, color: "#666", marginBottom: 20 },
@@ -247,11 +279,12 @@ const styles = StyleSheet.create({
   prLabel: { fontSize: 12, color: "#888", marginBottom: 4 },
   prValue: { fontSize: 32, fontWeight: "bold", color: "#FFD700" },
   prDate: { fontSize: 12, color: "#666", marginTop: 4 },
+  chartContainer: { marginBottom: 24 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#fff" },
+  sectionTitle: { fontSize: 16, fontWeight: "600", color: "#fff", marginBottom: 8 },
   addButton: { backgroundColor: "#fff", borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
   addButtonText: { color: "#000", fontWeight: "bold", fontSize: 13 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center" },
+  empty: { paddingVertical: 40, alignItems: "center" },
   emptyText: { color: "#666", fontSize: 16, marginBottom: 8 },
   emptySubtext: { color: "#444", fontSize: 13, textAlign: "center" },
   recordRow: { backgroundColor: "#111", borderRadius: 10, padding: 14, marginBottom: 6, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
